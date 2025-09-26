@@ -1,5 +1,5 @@
 
-import { INITIAL_GAME_STATE, SAVE_GAME_KEY } from '../constants';
+import { INITIAL_GAME_STATE, SAVE_GAME_KEY, UPGRADE_CONSTANTS } from '../constants';
 import type { GameState, CargoItem, Planet } from '../types';
 
 // Simple checksum to detect tampering.
@@ -220,17 +220,70 @@ export const sellGood = (currentState: GameState, goodId: string, quantity: numb
 export const repairShip = (currentState: GameState, amount: number): { newState?: GameState; message: string; success: boolean } => {
     const costPerPoint = 10;
     const totalCost = amount * costPerPoint;
+    const { ship } = currentState.player;
 
     if (currentState.player.credits < totalCost) {
         return { success: false, message: `Not enough credits for repair. Cost: ${totalCost}` };
     }
-    if (currentState.player.ship.durability >= 100) {
+    if (ship.durability >= ship.maxDurability) {
         return { success: false, message: 'Ship is already at full durability.' };
     }
     
     const newState = JSON.parse(JSON.stringify(currentState));
     newState.player.credits -= totalCost;
-    newState.player.ship.durability = Math.min(100, newState.player.ship.durability + amount);
+    newState.player.ship.durability = Math.min(ship.maxDurability, ship.durability + amount);
 
     return { newState, success: true, message: `Repaired ship for ${totalCost} credits.` };
+};
+
+export const upgradeShip = (currentState: GameState, upgradeType: 'cargo' | 'durability'): { newState?: GameState; message: string; success: boolean } => {
+    const { ship, credits } = currentState.player;
+    const newState = JSON.parse(JSON.stringify(currentState));
+
+    if (upgradeType === 'cargo') {
+        const { CARGO } = UPGRADE_CONSTANTS;
+        const currentLevel = ship.upgrades.cargo;
+
+        if (currentLevel >= CARGO.MAX_LEVEL) {
+            return { success: false, message: 'Cargo capacity is already at max level.' };
+        }
+
+        const cost = Math.floor(CARGO.BASE_COST * Math.pow(CARGO.COST_MULTIPLIER, currentLevel - 1));
+
+        if (credits < cost) {
+            return { success: false, message: `Not enough credits. Required: ${cost}` };
+        }
+
+        newState.player.credits -= cost;
+        newState.player.ship.upgrades.cargo += 1;
+        newState.player.ship.cargo.capacity += CARGO.PER_LEVEL;
+
+        return { newState, success: true, message: `Cargo capacity upgraded to ${newState.player.ship.cargo.capacity} for ${cost} credits.` };
+    }
+
+    if (upgradeType === 'durability') {
+        const { DURABILITY } = UPGRADE_CONSTANTS;
+        const currentLevel = ship.upgrades.durability;
+
+        if (currentLevel >= DURABILITY.MAX_LEVEL) {
+            return { success: false, message: 'Ship durability is already at max level.' };
+        }
+
+        const cost = Math.floor(DURABILITY.BASE_COST * Math.pow(DURABILITY.COST_MULTIPLIER, currentLevel - 1));
+
+        if (credits < cost) {
+            return { success: false, message: `Not enough credits. Required: ${cost}` };
+        }
+
+        newState.player.credits -= cost;
+        newState.player.ship.upgrades.durability += 1;
+        newState.player.ship.maxDurability += DURABILITY.PER_LEVEL;
+        // Also heal the ship by the upgraded amount
+        newState.player.ship.durability = Math.min(newState.player.ship.maxDurability, newState.player.ship.durability + DURABILITY.PER_LEVEL);
+
+
+        return { newState, success: true, message: `Maximum durability increased to ${newState.player.ship.maxDurability} for ${cost} credits.` };
+    }
+
+    return { success: false, message: 'Invalid upgrade type.' };
 };

@@ -13,6 +13,7 @@ interface GameContextType {
     buyGood: (goodId: string, quantity: number) => void;
     sellGood: (goodId: string, quantity: number) => void;
     repairShip: (amount: number) => void;
+    upgradeShip: (upgradeType: 'cargo' | 'durability') => void;
   };
 }
 
@@ -82,6 +83,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     buyGood: useCallback((goodId: string, quantity: number) => handleAction(gameLogic.buyGood, goodId, quantity), [handleAction]),
     sellGood: useCallback((goodId: string, quantity: number) => handleAction(gameLogic.sellGood, goodId, quantity), [handleAction]),
     repairShip: useCallback((amount: number) => handleAction(gameLogic.repairShip, amount), [handleAction]),
+    upgradeShip: useCallback((upgradeType: 'cargo' | 'durability') => handleAction(gameLogic.upgradeShip, upgradeType), [handleAction]),
   };
 
   return (

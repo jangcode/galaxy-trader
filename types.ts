@@ -14,10 +14,15 @@ export interface PlayerState {
 
 export interface Ship {
   name: string;
-  durability: number; // 0-100
+  durability: number; // current durability
+  maxDurability: number;
   cargo: {
     capacity: number;
     items: CargoItem[];
+  };
+  upgrades: {
+    cargo: number; // level
+    durability: number; // level
   };
 }
 
