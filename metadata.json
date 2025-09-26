@@ -1,0 +1,5 @@
+{
+  "name": "Galaxy Trader",
+  "description": "A 2D space trading simulation single-page application that runs entirely in the browser without a server. Players travel between planets, buy goods at low prices, and sell them at higher prices to accumulate wealth in the 'MakeMoney' galaxy.",
+  "requestFramePermissions": []
+}
