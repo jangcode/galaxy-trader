@@ -1,6 +1,6 @@
 
 import { INITIAL_GAME_STATE, SAVE_GAME_KEY } from '../constants';
-import type { GameState, CargoItem } from '../types';
+import type { GameState, CargoItem, Planet } from '../types';
 
 // Simple checksum to detect tampering.
 const createChecksum = (state: GameState): string => {
@@ -15,25 +15,87 @@ const createChecksum = (state: GameState): string => {
   return hash.toString();
 };
 
-export const loadGame = (): GameState => {
+const createNewGameState = (): GameState => {
+  const MAP_WIDTH = 800;
+  const MAP_HEIGHT = 600;
+  const PADDING = 50;
+  const MIN_DISTANCE = 150;
+
+  // Deep copy to avoid mutating the constant
+  const newGameState: GameState = JSON.parse(JSON.stringify(INITIAL_GAME_STATE));
+  
+  const placedPositions: {x: number, y: number, z: number}[] = [];
+
+  newGameState.galaxy.planets.forEach((planet: Planet) => {
+    let newPosition;
+    let positionOk = false;
+    let attempts = 0;
+
+    while (!positionOk && attempts < 100) { // Limit attempts to prevent infinite loop
+      newPosition = {
+        x: Math.floor(Math.random() * (MAP_WIDTH - PADDING * 2)) + PADDING,
+        y: Math.floor(Math.random() * (MAP_HEIGHT - PADDING * 2)) + PADDING,
+        z: Math.floor(Math.random() * 101) - 50, // -50 to 50
+      };
+
+      positionOk = true;
+      for (const pos of placedPositions) {
+        const distance = Math.sqrt(
+          Math.pow(newPosition.x - pos.x, 2) +
+          Math.pow(newPosition.y - pos.y, 2)
+        );
+        if (distance < MIN_DISTANCE) {
+          positionOk = false;
+          break;
+        }
+      }
+      attempts++;
+    }
+
+    // Fallback if we can't find a good position
+    if (!newPosition) {
+        newPosition = {
+            x: Math.floor(Math.random() * (MAP_WIDTH - PADDING * 2)) + PADDING,
+            y: Math.floor(Math.random() * (MAP_HEIGHT - PADDING * 2)) + PADDING,
+            z: Math.floor(Math.random() * 101) - 50,
+        };
+    }
+
+    planet.position = newPosition;
+    placedPositions.push(newPosition);
+  });
+  
+  newGameState.lastUpdated = new Date().toISOString();
+  newGameState.checksum = createChecksum(newGameState);
+  
+  return newGameState;
+};
+
+export const loadGame = (): { state: GameState; isNewGame: boolean } => {
   try {
     const savedStateJSON = localStorage.getItem(SAVE_GAME_KEY);
     if (!savedStateJSON) {
       console.log('No saved game found, creating a new one.');
-      return { ...INITIAL_GAME_STATE, checksum: createChecksum(INITIAL_GAME_STATE) };
+      const newGameState = createNewGameState();
+      saveGame(newGameState);
+      return { state: newGameState, isNewGame: true };
     }
 
     const savedState: GameState = JSON.parse(savedStateJSON);
     if (createChecksum(savedState) !== savedState.checksum) {
       console.warn('Game data checksum mismatch! Data may be corrupted. Starting a new game.');
       alert('Your saved data seems to be corrupted. A new game will be started.');
-      return { ...INITIAL_GAME_STATE, checksum: createChecksum(INITIAL_GAME_STATE) };
+      const newGameState = createNewGameState();
+      saveGame(newGameState);
+      return { state: newGameState, isNewGame: true };
     }
     console.log('Game loaded successfully.');
-    return savedState;
+    return { state: savedState, isNewGame: false };
   } catch (error) {
     console.error('Failed to load game state from localStorage:', error);
-    return { ...INITIAL_GAME_STATE, checksum: createChecksum(INITIAL_GAME_STATE) };
+    const newGameState = createNewGameState();
+    saveGame(newGameState);
+    return { state: newGameState, isNewGame: true };
   }
 };
 
@@ -63,8 +125,8 @@ export const updateMarketPrices = (currentState: GameState): GameState => {
   return newState;
 };
 
-const calculateDistance = (p1: { x: number; y: number }, p2: { x: number; y: number }): number => {
-    return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+export const calculateDistance = (p1: { x: number; y: number; z: number }, p2: { x: number; y: number; z: number }): number => {
+    return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2) + Math.pow(p2.z - p1.z, 2));
 };
 
 export const travelTo = (currentState: GameState, destinationPlanetId: string): { newState?: GameState; message: string; success: boolean } => {
@@ -172,4 +234,3 @@ export const repairShip = (currentState: GameState, amount: number): { newState?
 
     return { newState, success: true, message: `Repaired ship for ${totalCost} credits.` };
 };
-

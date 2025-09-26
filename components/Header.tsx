@@ -6,8 +6,7 @@ import { Icon } from './icons';
 interface HeaderProps {
   player: PlayerState;
   currentPlanetName: string;
-  onToggleMapView: () => void;
-  onOpenPrices: () => void;
+  onSetView: (view: 'map' | 'planet' | 'prices') => void;
 }
 
 const StatDisplay: React.FC<{ icon: string; value: string | number; label: string; colorClass?: string }> = ({ icon, value, label, colorClass = 'text-accent-blue' }) => (
@@ -20,12 +19,12 @@ const StatDisplay: React.FC<{ icon: string; value: string | number; label: strin
   </div>
 );
 
-export const Header: React.FC<HeaderProps> = ({ player, currentPlanetName, onToggleMapView, onOpenPrices }) => {
+export const Header: React.FC<HeaderProps> = ({ player, currentPlanetName, onSetView }) => {
   const cargoLoad = player.ship.cargo.items.reduce((acc, item) => acc + item.quantity, 0);
   const durabilityColor = player.ship.durability > 50 ? 'text-accent-green' : player.ship.durability > 20 ? 'text-accent-yellow' : 'text-accent-red';
 
   return (
-    <header className="bg-space-panel border-b border-space-border p-4 sticky top-0 z-40">
+    <header className="bg-space-panel border-b border-space-border p-4">
       <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
         <h1 className="text-2xl md:text-3xl font-orbitron text-white">
           Galaxy Trader
@@ -37,11 +36,15 @@ export const Header: React.FC<HeaderProps> = ({ player, currentPlanetName, onTog
           <StatDisplay icon="planet" value={currentPlanetName} label="Location" />
         </div>
         <div className="flex items-center gap-2">
-            <button onClick={onToggleMapView} className="bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-md hover:bg-accent-blue/40 transition-colors flex items-center gap-2">
+            <button onClick={() => onSetView('map')} className="bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-md hover:bg-accent-blue/40 transition-colors flex items-center gap-2">
                 <Icon name="galaxy" className="w-5 h-5" />
                 <span>Map</span>
             </button>
-            <button onClick={onOpenPrices} className="bg-accent-green/20 text-accent-green px-4 py-2 rounded-md hover:bg-accent-green/40 transition-colors flex items-center gap-2">
+             <button onClick={() => onSetView('planet')} className="bg-indigo-500/20 text-indigo-400 px-4 py-2 rounded-md hover:bg-indigo-500/40 transition-colors flex items-center gap-2">
+                <Icon name="market" className="w-5 h-5" />
+                <span>Market</span>
+            </button>
+            <button onClick={() => onSetView('prices')} className="bg-accent-green/20 text-accent-green px-4 py-2 rounded-md hover:bg-accent-green/40 transition-colors flex items-center gap-2">
                 <Icon name="chart" className="w-5 h-5" />
                 <span>Prices</span>
             </button>

@@ -35,10 +35,11 @@ export interface Galaxy {
 export interface Planet {
   id: string;
   name: string;
-  position: { x: number; y: number };
+  position: { x: number; y: number; z: number };
   taxRate: number; // e.g., 0.01 = 1%
   market: MarketGood[];
   description: string;
+  color: string;
 }
 
 export interface MarketGood {

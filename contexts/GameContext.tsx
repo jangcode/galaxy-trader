@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { GameState, NotificationMessage, NotificationType, PlayerState } from '../types';
 import * as gameLogic from '../services/gameLogic';
@@ -24,11 +23,25 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationMessage[]>([]);
 
-  useEffect(() => {
-    const loadedState = gameLogic.loadGame();
-    setGameState(loadedState);
-    setIsLoading(false);
+  const addNotification = useCallback((message: string, type: NotificationType = 'info') => {
+    const newNotification = { id: Date.now(), message, type };
+    setNotifications(prev => [newNotification, ...prev]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== newNotification.id));
+    }, 5000);
   }, []);
+
+  useEffect(() => {
+    const { state, isNewGame } = gameLogic.loadGame();
+    setGameState(state);
+    setIsLoading(false);
+    if (isNewGame) {
+      // Use a small timeout to allow the main UI to render first.
+      setTimeout(() => {
+        addNotification('Welcome to Galaxy Trader! A new journey begins.', 'info');
+      }, 500);
+    }
+  }, [addNotification]);
 
   useEffect(() => {
     if (gameState) {
@@ -47,14 +60,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => clearInterval(interval);
   }, []);
   
-  const addNotification = useCallback((message: string, type: NotificationType = 'info') => {
-    const newNotification = { id: Date.now(), message, type };
-    setNotifications(prev => [newNotification, ...prev]);
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== newNotification.id));
-    }, 5000);
-  }, []);
-
   const handleAction = useCallback(<T,>(
     actionFn: (state: GameState, ...args: T[]) => { newState?: GameState; message: string; success: boolean },
     ...args: T[]

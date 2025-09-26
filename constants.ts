@@ -12,9 +12,10 @@ const PLANETS: Planet[] = [
   {
     id: 'terra',
     name: 'Terra Prime',
-    position: { x: 100, y: 100 },
+    position: { x: 400, y: 300, z: 20 },
     taxRate: 0.05,
     description: "The bustling capital of the 'MakeMoney' galaxy, with a balanced economy and stable markets.",
+    color: 'royalblue',
     market: [
       { goodId: 'water', buyPrice: 22, sellPrice: 18 },
       { goodId: 'food', buyPrice: 55, sellPrice: 45 },
@@ -25,9 +26,10 @@ const PLANETS: Planet[] = [
   {
     id: 'aqua',
     name: 'Aqua Ventus',
-    position: { x: 300, y: 400 },
+    position: { x: 150, y: 450, z: -30 },
     taxRate: 0.02,
     description: "An ocean world, rich in water resources but desperate for advanced technology and minerals.",
+    color: 'aquamarine',
     market: [
       { goodId: 'water', buyPrice: 15, sellPrice: 10 },
       { goodId: 'food', buyPrice: 60, sellPrice: 50 },
@@ -38,9 +40,10 @@ const PLANETS: Planet[] = [
   {
     id: 'volcanis',
     name: 'Volcanis',
-    position: { x: 600, y: 200 },
+    position: { x: 650, y: 150, z: 50 },
     taxRate: 0.1,
     description: 'A mineral-rich volcanic planet. The harsh environment makes food and water scarce and valuable.',
+    color: 'orangered',
     market: [
       { goodId: 'water', buyPrice: 35, sellPrice: 30 },
       { goodId: 'food', buyPrice: 70, sellPrice: 60 },

@@ -5,12 +5,13 @@ import { Header } from './components/Header';
 import { CurrentPlanetView } from './components/CurrentPlanetView';
 import { GalaxyMap } from './components/GalaxyMap';
 import { Notification } from './components/Notification';
-import { GalaxyPricesModal } from './components/GalaxyPricesModal';
+import { GalaxyPricesView } from './components/GalaxyPricesView';
+
+type View = 'map' | 'planet' | 'prices';
 
 const App: React.FC = () => {
   const { gameState, isLoading, notifications } = useGame();
-  const [isGalaxyMapView, setGalaxyMapView] = useState<boolean>(true);
-  const [isPricesModalOpen, setPricesModalOpen] = useState<boolean>(false);
+  const [activeView, setActiveView] = useState<View>('map');
 
   if (isLoading) {
     return (
@@ -37,26 +38,26 @@ const App: React.FC = () => {
   const currentPlanet = gameState.galaxy.planets.find(p => p.id === gameState.player.currentPlanetId);
 
   return (
-    <div className="min-h-screen bg-space-dark text-space-text">
+    <div className="h-screen bg-space-dark text-space-text flex flex-col overflow-hidden">
       <Header 
         player={gameState.player} 
         currentPlanetName={currentPlanet?.name || "In Transit"}
-        onToggleMapView={() => setGalaxyMapView(!isGalaxyMapView)}
-        onOpenPrices={() => setPricesModalOpen(true)}
+        onSetView={setActiveView}
       />
-      <main className="p-4 md:p-8 max-w-7xl mx-auto">
-        {isGalaxyMapView ? (
-          <GalaxyMap galaxy={gameState.galaxy} player={gameState.player} onPlanetSelect={() => setGalaxyMapView(false)} />
-        ) : (
-          currentPlanet && <CurrentPlanetView planet={currentPlanet} />
+      <main className="flex-grow overflow-y-auto">
+        {activeView === 'map' && (
+          <GalaxyMap galaxy={gameState.galaxy} player={gameState.player} onPlanetSelect={() => setActiveView('planet')} />
         )}
+        {activeView === 'planet' && currentPlanet && (
+          <CurrentPlanetView planet={currentPlanet} />
+        )}
+        {activeView === 'prices' && <GalaxyPricesView />}
       </main>
       <div className="fixed bottom-4 right-4 flex flex-col items-end space-y-2 z-50">
         {notifications.map((notif) => (
           <Notification key={notif.id} message={notif.message} type={notif.type} />
         ))}
       </div>
-      {isPricesModalOpen && <GalaxyPricesModal onClose={() => setPricesModalOpen(false)} />}
     </div>
   );
 };

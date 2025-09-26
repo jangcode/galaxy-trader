@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import type { Planet } from '../types';
 import { Market } from './Market';
@@ -17,7 +18,7 @@ export const CurrentPlanetView: React.FC<CurrentPlanetViewProps> = ({ planet }) 
     }
 
     return (
-        <div className="animate-slide-in" style={{ animationDelay: '100ms', animationFillMode: 'backwards' }}>
+        <div className="animate-slide-in p-4 md:p-8" style={{ animationDelay: '100ms', animationFillMode: 'backwards' }}>
             <div className="bg-space-panel border border-space-border rounded-lg p-6 mb-8">
                 <h2 className="text-3xl font-orbitron text-accent-blue">{planet.name}</h2>
                 <p className="text-space-text-secondary mt-2">{planet.description}</p>
@@ -66,7 +67,6 @@ const MyCargo: React.FC = () => {
     const { gameState } = useGame();
     if (!gameState) return null;
 
-    // FIX: Property 'galaxy' does not exist on type 'PlayerState'. Destructure 'galaxy' from 'gameState' and 'ship' from 'gameState.player'.
     const { player: { ship }, galaxy } = gameState;
 
     if (ship.cargo.items.length === 0) {
