@@ -2,6 +2,7 @@
 import React from 'react';
 import type { PlayerState } from '../types';
 import { Icon } from './icons';
+import { useGame } from '../contexts/GameContext';
 
 interface HeaderProps {
   player: PlayerState;
@@ -20,6 +21,7 @@ const StatDisplay: React.FC<{ icon: string; value: string | number; label: strin
 );
 
 export const Header: React.FC<HeaderProps> = ({ player, currentPlanetName, onSetView }) => {
+  const { actions } = useGame();
   const cargoLoad = player.ship.cargo.items.reduce((acc, item) => acc + item.quantity, 0);
   const durabilityColor = player.ship.durability > 50 ? 'text-accent-green' : player.ship.durability > 20 ? 'text-accent-yellow' : 'text-accent-red';
 
@@ -35,19 +37,32 @@ export const Header: React.FC<HeaderProps> = ({ player, currentPlanetName, onSet
           <StatDisplay icon="durability" value={`${player.ship.durability}%`} label="Durability" colorClass={durabilityColor} />
           <StatDisplay icon="planet" value={currentPlanetName} label="Location" />
         </div>
-        <div className="flex items-center gap-2">
-            <button onClick={() => onSetView('map')} className="bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-md hover:bg-accent-blue/40 transition-colors flex items-center gap-2">
-                <Icon name="galaxy" className="w-5 h-5" />
-                <span>Map</span>
-            </button>
-             <button onClick={() => onSetView('planet')} className="bg-indigo-500/20 text-indigo-400 px-4 py-2 rounded-md hover:bg-indigo-500/40 transition-colors flex items-center gap-2">
-                <Icon name="market" className="w-5 h-5" />
-                <span>Market</span>
-            </button>
-            <button onClick={() => onSetView('prices')} className="bg-accent-green/20 text-accent-green px-4 py-2 rounded-md hover:bg-accent-green/40 transition-colors flex items-center gap-2">
-                <Icon name="chart" className="w-5 h-5" />
-                <span>Prices</span>
-            </button>
+        <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <button onClick={() => onSetView('map')} className="bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-md hover:bg-accent-blue/40 transition-colors flex items-center gap-2">
+                  <Icon name="galaxy" className="w-5 h-5" />
+                  <span>Map</span>
+              </button>
+              <button onClick={() => onSetView('planet')} className="bg-indigo-500/20 text-indigo-400 px-4 py-2 rounded-md hover:bg-indigo-500/40 transition-colors flex items-center gap-2">
+                  <Icon name="market" className="w-5 h-5" />
+                  <span>Market</span>
+              </button>
+              <button onClick={() => onSetView('prices')} className="bg-accent-green/20 text-accent-green px-4 py-2 rounded-md hover:bg-accent-green/40 transition-colors flex items-center gap-2">
+                  <Icon name="chart" className="w-5 h-5" />
+                  <span>Prices</span>
+              </button>
+            </div>
+             <div className="flex items-center gap-2 border-l border-space-border pl-2 ml-2">
+                 <button onClick={() => actions.saveGame()} className="bg-teal-500/20 text-teal-400 px-3 py-2 rounded-md hover:bg-teal-500/40 transition-colors flex items-center gap-2" title="Save Game">
+                    <Icon name="save" className="w-5 h-5" />
+                </button>
+                <button onClick={() => actions.loadGame()} className="bg-sky-500/20 text-sky-400 px-3 py-2 rounded-md hover:bg-sky-500/40 transition-colors flex items-center gap-2" title="Load Game">
+                    <Icon name="load" className="w-5 h-5" />
+                </button>
+                <button onClick={() => actions.newGame()} className="bg-red-500/20 text-red-400 px-3 py-2 rounded-md hover:bg-red-500/40 transition-colors flex items-center gap-2" title="New Game">
+                    <Icon name="new" className="w-5 h-5" />
+                </button>
+            </div>
         </div>
       </div>
     </header>

@@ -108,6 +108,12 @@ export const saveGame = (state: GameState): void => {
   }
 };
 
+export const startNewGame = (): GameState => {
+  const newGameState = createNewGameState();
+  saveGame(newGameState);
+  return newGameState;
+};
+
 export const updateMarketPrices = (currentState: GameState): GameState => {
   const newState = { ...currentState };
   newState.galaxy.planets.forEach(planet => {

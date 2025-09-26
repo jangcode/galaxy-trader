@@ -1,7 +1,8 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { GameState, NotificationMessage, NotificationType, PlayerState } from '../types';
 import * as gameLogic from '../services/gameLogic';
-import { MARKET_UPDATE_INTERVAL } from '../constants';
+import { MARKET_UPDATE_INTERVAL, SAVE_GAME_KEY } from '../constants';
 
 interface GameContextType {
   gameState: GameState | null;
@@ -14,6 +15,9 @@ interface GameContextType {
     sellGood: (goodId: string, quantity: number) => void;
     repairShip: (amount: number) => void;
     upgradeShip: (upgradeType: 'cargo' | 'durability') => void;
+    saveGame: () => void;
+    loadGame: () => void;
+    newGame: () => void;
   };
 }
 
@@ -77,6 +81,33 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     });
   }, [addNotification]);
+
+  const saveGameAction = useCallback(() => {
+    if (gameState) {
+      gameLogic.saveGame(gameState);
+      addNotification('Game Saved!', 'success');
+    }
+  }, [gameState, addNotification]);
+
+  const loadGameAction = useCallback(() => {
+      const savedData = localStorage.getItem(SAVE_GAME_KEY);
+      if (!savedData) {
+          addNotification('No saved game found.', 'info');
+          return;
+      }
+      // loadGame handles corrupt data by creating a new game and alerting.
+      const { state } = gameLogic.loadGame();
+      setGameState(state);
+      addNotification('Game loaded successfully!', 'success');
+  }, [addNotification]);
+  
+  const newGameAction = useCallback(() => {
+      if (window.confirm('Are you sure you want to start a new game? This will overwrite your current save file.')) {
+          const newGameState = gameLogic.startNewGame();
+          setGameState(newGameState);
+          addNotification('A new journey begins!', 'info');
+      }
+  }, [addNotification]);
   
   const actions = {
     travelTo: useCallback((planetId: string) => handleAction(gameLogic.travelTo, planetId), [handleAction]),
@@ -84,6 +115,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     sellGood: useCallback((goodId: string, quantity: number) => handleAction(gameLogic.sellGood, goodId, quantity), [handleAction]),
     repairShip: useCallback((amount: number) => handleAction(gameLogic.repairShip, amount), [handleAction]),
     upgradeShip: useCallback((upgradeType: 'cargo' | 'durability') => handleAction(gameLogic.upgradeShip, upgradeType), [handleAction]),
+    saveGame: saveGameAction,
+    loadGame: loadGameAction,
+    newGame: newGameAction,
   };
 
   return (
