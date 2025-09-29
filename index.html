@@ -39,12 +39,17 @@
               pulse: {
                 '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(88, 166, 255, 0.4)' },
                 '50%': { transform: 'scale(1.05)', boxShadow: '0 0 10px 5px rgba(88, 166, 255, 0)' },
+              },
+              glow: {
+                '0%, 100%': { opacity: '0.6' },
+                '50%': { opacity: '1' },
               }
             },
             animation: {
               'fade-in': 'fadeIn 0.5s ease-out',
               'slide-in': 'slideIn 0.5s ease-out forwards',
               'pulse-slow': 'pulse 3s infinite',
+              'glow-ring': 'glow 2s infinite ease-in-out',
             }
           }
         }

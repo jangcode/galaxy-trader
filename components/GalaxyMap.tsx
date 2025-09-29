@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Galaxy, PlayerState } from '../types';
 import { useGame } from '../contexts/GameContext';
 import { calculateDistance } from '../services/gameLogic';
@@ -78,6 +77,62 @@ export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanet
   const [hoveredPlanetId, setHoveredPlanetId] = useState<string | null>(null);
   const [selectedPlanetId, setSelectedPlanetId] = useState<string | null>(null);
 
+  const marketOpportunities = useMemo(() => {
+    const bestSellPlanets = new Set<string>();
+    const bestBuyPlanets = new Set<string>();
+
+    if (!galaxy.goods || !galaxy.planets) {
+        return { bestSellPlanets, bestBuyPlanets };
+    }
+
+    // Find best places to sell current cargo
+    const cargoGoodIds = player.ship.cargo.items.map(item => item.goodId);
+    for (const goodId of cargoGoodIds) {
+        const good = galaxy.goods.find(g => g.id === goodId);
+        if (!good) continue;
+
+        let maxSellPrice = 0;
+        let bestPlanetId = '';
+
+        galaxy.planets.forEach(planet => {
+            if (planet.id === player.currentPlanetId) return;
+            const marketGood = planet.market.find(mg => mg.goodId === goodId);
+            if (marketGood && marketGood.sellPrice > maxSellPrice) {
+                maxSellPrice = marketGood.sellPrice;
+                bestPlanetId = planet.id;
+            }
+        });
+        
+        // A good deal is >25% above base price
+        if (bestPlanetId && maxSellPrice > good.basePrice * 1.25) {
+            bestSellPlanets.add(bestPlanetId);
+        }
+    }
+    
+    // Find best places to buy any good
+    galaxy.goods.forEach(good => {
+        let minBuyPrice = Infinity;
+        let bestPlanetId = '';
+
+        galaxy.planets.forEach(planet => {
+            if (planet.id === player.currentPlanetId) return;
+            const marketGood = planet.market.find(mg => mg.goodId === good.id);
+            if (marketGood && marketGood.buyPrice < minBuyPrice) {
+                minBuyPrice = marketGood.buyPrice;
+                bestPlanetId = planet.id;
+            }
+        });
+        
+        // A good deal is <75% of base price
+        if (bestPlanetId && minBuyPrice < good.basePrice * 0.75) {
+            bestBuyPlanets.add(bestPlanetId);
+        }
+    });
+
+    return { bestSellPlanets, bestBuyPlanets };
+  }, [galaxy.planets, galaxy.goods, player.ship.cargo.items, player.currentPlanetId]);
+
+
   const handleTravel = (planetId: string) => {
     if (planetId !== player.currentPlanetId) {
       actions.travelTo(planetId);
@@ -87,8 +142,7 @@ export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanet
 
   const currentPlanetForLines = galaxy.planets.find(p => p.id === (player.isTraveling ? player.travelInfo?.originPlanetId : player.currentPlanetId));
   const selectedPlanet = selectedPlanetId ? galaxy.planets.find(p => p.id === selectedPlanetId) : null;
-  const currentPlanet = player.currentPlanetId ? galaxy.planets.find(p => p.id === player.currentPlanetId) : null;
-
+  
   return (
     <div className="animate-fade-in relative h-full w-full bg-space-dark overflow-hidden">
       <svg viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} className="w-full h-full">
@@ -101,29 +155,59 @@ export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanet
         </defs>
         <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#grad-bg)" />
         
-        {/* Travel Lines */}
+        {/* Hyperspace Lanes */}
         {currentPlanetForLines && galaxy.planets.map(planet => {
           if (planet.id === currentPlanetForLines.id) return null;
           return (
-            <line
-              key={`line-${planet.id}`}
-              x1={currentPlanetForLines.position.x}
-              y1={currentPlanetForLines.position.y}
-              x2={planet.position.x}
-              y2={planet.position.y}
-              stroke="#58A6FF"
-              strokeWidth="1"
-              strokeDasharray="4 4"
-              className="opacity-50"
-            />
+            <g key={`lane-${planet.id}`}>
+                <line
+                  x1={currentPlanetForLines.position.x}
+                  y1={currentPlanetForLines.position.y}
+                  x2={planet.position.x}
+                  y2={planet.position.y}
+                  stroke="#58A6FF"
+                  strokeWidth="5"
+                  className="opacity-[0.08]"
+                />
+                <line
+                  x1={currentPlanetForLines.position.x}
+                  y1={currentPlanetForLines.position.y}
+                  x2={planet.position.x}
+                  y2={planet.position.y}
+                  stroke="#C9D1D9"
+                  strokeWidth="1"
+                  className="opacity-25"
+                />
+            </g>
           );
         })}
+
+        {/* Player ship trajectory */}
+        {player.isTraveling && player.travelInfo && (() => {
+            const origin = galaxy.planets.find(p => p.id === player.travelInfo!.originPlanetId);
+            const destination = galaxy.planets.find(p => p.id === player.travelInfo!.destinationPlanetId);
+            if (!origin || !destination) return null;
+            return (
+                <line
+                    x1={origin.position.x}
+                    y1={origin.position.y}
+                    x2={destination.position.x}
+                    y2={destination.position.y}
+                    stroke="#F85149"
+                    strokeWidth="1.5"
+                    strokeDasharray="6 6"
+                    className="opacity-90"
+                />
+            )
+        })()}
 
         {/* Planets */}
         {galaxy.planets.map(planet => {
           const isCurrent = player.currentPlanetId === planet.id;
           const isHovered = hoveredPlanetId === planet.id;
           const radius = isCurrent ? 12 : 8;
+          const isBestSell = marketOpportunities.bestSellPlanets.has(planet.id);
+          const isBestBuy = marketOpportunities.bestBuyPlanets.has(planet.id);
           
           return (
             <g
@@ -134,6 +218,12 @@ export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanet
               onMouseLeave={() => setHoveredPlanetId(null)}
               className="cursor-pointer"
             >
+              {isBestSell && (
+                <circle r={radius + 6} fill="none" stroke="#3FB950" strokeWidth="2" className="animate-glow-ring pointer-events-none" />
+              )}
+              {isBestBuy && !isBestSell && (
+                <circle r={radius + 6} fill="none" stroke="#E3B341" strokeWidth="2" className="animate-glow-ring pointer-events-none" />
+              )}
               <circle
                 r={radius}
                 fill={planet.color}
