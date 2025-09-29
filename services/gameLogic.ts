@@ -1,5 +1,5 @@
 
-import { INITIAL_GAME_STATE, SAVE_GAME_KEY, UPGRADE_CONSTANTS } from '../constants';
+import { INITIAL_GAME_STATE, SAVE_GAME_KEY, UPGRADE_CONSTANTS, SHIP_SPEED } from '../constants';
 import type { GameState, CargoItem, Planet } from '../types';
 
 // Simple checksum to detect tampering.
@@ -82,6 +82,19 @@ export const loadGame = (): { state: GameState; isNewGame: boolean } => {
     }
 
     const savedState: GameState = JSON.parse(savedStateJSON);
+    
+    // Migration for saves without travel state
+    if (savedState.player.isTraveling === undefined) {
+      savedState.player.isTraveling = false;
+    }
+    if (savedState.player.travelInfo === undefined) {
+      savedState.player.travelInfo = null;
+    }
+    if (savedState.player.currentPlanetId === undefined) {
+      savedState.player.currentPlanetId = 'terra';
+    }
+
+
     if (createChecksum(savedState) !== savedState.checksum) {
       console.warn('Game data checksum mismatch! Data may be corrupted. Starting a new game.');
       alert('Your saved data seems to be corrupted. A new game will be started.');
@@ -136,44 +149,90 @@ export const calculateDistance = (p1: { x: number; y: number; z: number }, p2: {
 };
 
 export const travelTo = (currentState: GameState, destinationPlanetId: string): { newState?: GameState; message: string; success: boolean } => {
-    if (currentState.player.currentPlanetId === destinationPlanetId) {
+    if (currentState.player.isTraveling) {
+        return { message: 'Already in transit.', success: false };
+    }
+    if (currentState.player.ship.durability <= 0) {
+        return { message: 'Your ship is too damaged to travel. Repair it first.', success: false };
+    }
+
+    const originPlanetId = currentState.player.currentPlanetId;
+    if (!originPlanetId) {
+        return { message: 'Cannot travel while in deep space.', success: false };
+    }
+    if (originPlanetId === destinationPlanetId) {
         return { message: 'You are already on this planet.', success: false };
     }
 
-    const currentPlanet = currentState.galaxy.planets.find(p => p.id === currentState.player.currentPlanetId);
+    const originPlanet = currentState.galaxy.planets.find(p => p.id === originPlanetId);
     const destinationPlanet = currentState.galaxy.planets.find(p => p.id === destinationPlanetId);
 
-    if (!currentPlanet || !destinationPlanet) {
+    if (!originPlanet || !destinationPlanet) {
         return { message: 'Invalid planet coordinates.', success: false };
     }
     
-    const distance = calculateDistance(currentPlanet.position, destinationPlanet.position);
+    const distance = calculateDistance(originPlanet.position, destinationPlanet.position);
     const fuelCost = Math.round(distance / 10);
-    const tax = Math.round(currentState.player.credits * destinationPlanet.taxRate);
+    const travelDurationMs = (distance / SHIP_SPEED) * 1000;
 
-    if (currentState.player.credits < fuelCost + tax) {
-        return { message: `Not enough credits for travel. Cost: ${fuelCost} (fuel) + ${tax} (tax) = ${fuelCost + tax}`, success: false };
+    if (currentState.player.credits < fuelCost) {
+        return { message: `Not enough credits for travel. Fuel Cost: ${fuelCost}`, success: false };
     }
 
     const newState = JSON.parse(JSON.stringify(currentState));
-    newState.player.credits -= (fuelCost + tax);
-    newState.player.currentPlanetId = destinationPlanetId;
+    newState.player.credits -= fuelCost;
+    newState.player.isTraveling = true;
+    const startTime = new Date();
+    const endTime = new Date(startTime.getTime() + travelDurationMs);
     
-    // Chance to lose durability
-    const durabilityLoss = Math.random() < 0.2 ? Math.floor(Math.random() * 5) + 1 : 0;
-    newState.player.ship.durability = Math.max(0, newState.player.ship.durability - durabilityLoss);
+    newState.player.travelInfo = {
+        originPlanetId: originPlanetId,
+        destinationPlanetId: destinationPlanetId,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+    };
+    newState.player.currentPlanetId = null;
 
-    if (newState.player.ship.durability === 0) {
-        return { message: 'Your ship was destroyed during travel! Game Over.', success: false }; // a more robust game over needs to be handled
-    }
-
-    let travelMessage = `Traveled to ${destinationPlanet.name}. Paid ${fuelCost} for fuel and ${tax} in taxes.`;
-    if (durabilityLoss > 0) {
-        travelMessage += ` Ship durability decreased by ${durabilityLoss}.`;
-    }
+    let travelMessage = `Traveling to ${destinationPlanet.name}. Paid ${fuelCost} for fuel. ETA: ${Math.round(travelDurationMs/1000)}s`;
 
     return { newState, message: travelMessage, success: true };
 };
+
+export const completeTravel = (currentState: GameState): GameState | null => {
+    if (!currentState.player.isTraveling || !currentState.player.travelInfo) {
+        return null;
+    }
+
+    const endTime = new Date(currentState.player.travelInfo.endTime);
+    if (new Date() < endTime) {
+        return null; // Not yet arrived
+    }
+
+    const newState = JSON.parse(JSON.stringify(currentState));
+    const { destinationPlanetId } = newState.player.travelInfo;
+    const destinationPlanet = newState.galaxy.planets.find((p: Planet) => p.id === destinationPlanetId);
+
+    if (!destinationPlanet) {
+        console.error("Destination planet not found on arrival!");
+        newState.player.isTraveling = false;
+        newState.player.travelInfo = null;
+        newState.player.currentPlanetId = newState.player.travelInfo.originPlanetId;
+        return newState;
+    }
+    
+    const tax = Math.round(newState.player.credits * destinationPlanet.taxRate);
+    newState.player.credits -= tax;
+    
+    const durabilityLoss = Math.random() < 0.2 ? Math.floor(Math.random() * 5) + 1 : 0;
+    newState.player.ship.durability = Math.max(0, newState.player.ship.durability - durabilityLoss);
+    
+    newState.player.currentPlanetId = destinationPlanetId;
+    newState.player.isTraveling = false;
+    newState.player.travelInfo = null;
+
+    return newState;
+};
+
 
 export const buyGood = (currentState: GameState, goodId: string, quantity: number): { newState?: GameState; message: string; success: boolean } => {
   const currentPlanet = currentState.galaxy.planets.find(p => p.id === currentState.player.currentPlanetId);

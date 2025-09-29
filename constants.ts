@@ -1,3 +1,4 @@
+
 import type { GameState, Galaxy, Good, Planet, PlayerState } from './types';
 
 export const UPGRADE_CONSTANTS = {
@@ -262,6 +263,8 @@ const GALAXY: Galaxy = {
 const INITIAL_PLAYER_STATE: PlayerState = {
   credits: 1000,
   currentPlanetId: 'terra',
+  isTraveling: false,
+  travelInfo: null,
   ship: {
     name: 'Stardust Cruiser',
     durability: 100,
@@ -284,5 +287,7 @@ export const INITIAL_GAME_STATE: GameState = {
   checksum: '',
 };
 
+export const SHIP_SPEED = 100; // units per second
 export const MARKET_UPDATE_INTERVAL = 10000; // 10 seconds
+export const AUTOSAVE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 export const SAVE_GAME_KEY = 'galaxyTraderState';

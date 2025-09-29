@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Galaxy, PlayerState } from '../types';
 import { useGame } from '../contexts/GameContext';
 import { calculateDistance } from '../services/gameLogic';
@@ -7,6 +7,71 @@ import { Icon } from './icons';
 
 const MAP_WIDTH = 800;
 const MAP_HEIGHT = 600;
+
+const Ship: React.FC<{ player: PlayerState; galaxy: Galaxy }> = ({ player, galaxy }) => {
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    let animationFrameId: number;
+
+    if (player.isTraveling && player.travelInfo) {
+      const origin = galaxy.planets.find(p => p.id === player.travelInfo!.originPlanetId);
+      const destination = galaxy.planets.find(p => p.id === player.travelInfo!.destinationPlanetId);
+
+      if (!origin || !destination) return;
+
+      const startTime = new Date(player.travelInfo.startTime).getTime();
+      const endTime = new Date(player.travelInfo.endTime).getTime();
+      const duration = endTime - startTime;
+
+      const animate = () => {
+        const now = Date.now();
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        const x = origin.position.x + (destination.position.x - origin.position.x) * progress;
+        const y = origin.position.y + (destination.position.y - origin.position.y) * progress;
+        setPosition({ x, y });
+        
+        if (progress < 1) {
+          animationFrameId = requestAnimationFrame(animate);
+        }
+      };
+      
+      animationFrameId = requestAnimationFrame(animate);
+
+    } else if (player.currentPlanetId) {
+      const currentPlanet = galaxy.planets.find(p => p.id === player.currentPlanetId);
+      if (currentPlanet) {
+        setPosition(currentPlanet.position);
+      }
+    }
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [player.isTraveling, player.currentPlanetId, player.travelInfo, galaxy]);
+
+  if (!position) return null;
+
+  let rotation = 0;
+  if (player.isTraveling && player.travelInfo) {
+      const origin = galaxy.planets.find(p => p.id === player.travelInfo!.originPlanetId);
+      const destination = galaxy.planets.find(p => p.id === player.travelInfo!.destinationPlanetId);
+      if(origin && destination) {
+          const dx = destination.position.x - origin.position.x;
+          const dy = destination.position.y - origin.position.y;
+          rotation = (Math.atan2(dy, dx) * 180 / Math.PI) + 90;
+      }
+  }
+
+  return (
+    <g transform={`translate(${position.x}, ${position.y}) rotate(${rotation})`}>
+      <path d="M0 -10 L6 8 L0 5 L-6 8 Z" fill="#58A6FF" stroke="white" strokeWidth="1" />
+    </g>
+  );
+};
+
 
 export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanetSelect: () => void; }> = ({ galaxy, player, onPlanetSelect }) => {
   const { actions } = useGame();
@@ -16,13 +81,13 @@ export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanet
   const handleTravel = (planetId: string) => {
     if (planetId !== player.currentPlanetId) {
       actions.travelTo(planetId);
-      onPlanetSelect();
       setSelectedPlanetId(null);
     }
   };
 
-  const currentPlanet = galaxy.planets.find(p => p.id === player.currentPlanetId);
+  const currentPlanetForLines = galaxy.planets.find(p => p.id === (player.isTraveling ? player.travelInfo?.originPlanetId : player.currentPlanetId));
   const selectedPlanet = selectedPlanetId ? galaxy.planets.find(p => p.id === selectedPlanetId) : null;
+  const currentPlanet = player.currentPlanetId ? galaxy.planets.find(p => p.id === player.currentPlanetId) : null;
 
   return (
     <div className="animate-fade-in relative h-full w-full bg-space-dark overflow-hidden">
@@ -37,13 +102,13 @@ export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanet
         <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#grad-bg)" />
         
         {/* Travel Lines */}
-        {currentPlanet && galaxy.planets.map(planet => {
-          if (planet.id === currentPlanet.id) return null;
+        {currentPlanetForLines && galaxy.planets.map(planet => {
+          if (planet.id === currentPlanetForLines.id) return null;
           return (
             <line
               key={`line-${planet.id}`}
-              x1={currentPlanet.position.x}
-              y1={currentPlanet.position.y}
+              x1={currentPlanetForLines.position.x}
+              y1={currentPlanetForLines.position.y}
               x2={planet.position.x}
               y2={planet.position.y}
               stroke="#58A6FF"
@@ -91,6 +156,7 @@ export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanet
             </g>
           );
         })}
+        <Ship player={player} galaxy={galaxy} />
       </svg>
       <div className="absolute top-4 left-4 p-2 bg-space-panel/80 rounded border border-space-border">
           <h3 className="font-orbitron text-lg">Galaxy Map</h3>
@@ -98,7 +164,7 @@ export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanet
       </div>
 
       {/* Planet Info Panel */}
-      {selectedPlanet && currentPlanet && (
+      {selectedPlanet && (
         <div 
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-space-panel/90 backdrop-blur-sm border border-space-border rounded-lg shadow-2xl w-full max-w-sm animate-fade-in text-space-text"
           onClick={(e) => e.stopPropagation()}
@@ -112,8 +178,8 @@ export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanet
           <div className="p-4 space-y-2 text-sm">
             <p className="text-space-text-secondary h-16 overflow-y-auto pr-2">{selectedPlanet.description}</p>
             <div className="border-t border-space-border my-2"></div>
-            <div className="flex justify-between"><span>Distance:</span> <span className="font-mono">{Math.round(calculateDistance(currentPlanet.position, selectedPlanet.position))} units</span></div>
-            <div className="flex justify-between"><span>Est. Fuel Cost:</span> <span className="font-mono">{Math.round(calculateDistance(currentPlanet.position, selectedPlanet.position) / 10)}cr</span></div>
+            <div className="flex justify-between"><span>Distance:</span> <span className="font-mono">{Math.round(calculateDistance(currentPlanetForLines?.position || selectedPlanet.position, selectedPlanet.position))} units</span></div>
+            <div className="flex justify-between"><span>Est. Fuel Cost:</span> <span className="font-mono">{Math.round(calculateDistance(currentPlanetForLines?.position || selectedPlanet.position, selectedPlanet.position) / 10)}cr</span></div>
             <div className="flex justify-between"><span>Arrival Tax:</span> <span className="font-mono">{(selectedPlanet.taxRate * 100).toFixed(0)}% ({Math.round(player.credits * selectedPlanet.taxRate)}cr)</span></div>
           </div>
           <div className="p-4 bg-space-dark/50 rounded-b-lg">
@@ -122,9 +188,10 @@ export const GalaxyMap: React.FC<{ galaxy: Galaxy; player: PlayerState, onPlanet
             ) : (
               <button 
                 onClick={() => handleTravel(selectedPlanet.id)}
-                className="w-full bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-md hover:bg-accent-blue/40 transition-colors flex items-center justify-center gap-2"
+                disabled={player.isTraveling}
+                className="w-full bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-md hover:bg-accent-blue/40 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Travel to {selectedPlanet.name}
+                {player.isTraveling ? 'In Transit...' : `Travel to ${selectedPlanet.name}`}
               </button>
             )}
           </div>

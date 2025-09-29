@@ -43,11 +43,19 @@ export const Header: React.FC<HeaderProps> = ({ player, currentPlanetName, onSet
                   <Icon name="galaxy" className="w-5 h-5" />
                   <span className="hidden sm:inline">Map</span>
               </button>
-              <button onClick={() => onSetView('planet')} className="bg-indigo-500/20 text-indigo-400 px-2 py-1 sm:px-3 sm:py-2 text-sm rounded-md hover:bg-indigo-500/40 transition-colors flex items-center gap-1 sm:gap-2">
+              <button 
+                onClick={() => onSetView('planet')}
+                disabled={player.isTraveling} 
+                className="bg-indigo-500/20 text-indigo-400 px-2 py-1 sm:px-3 sm:py-2 text-sm rounded-md hover:bg-indigo-500/40 transition-colors flex items-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                   <Icon name="market" className="w-5 h-5" />
                   <span className="hidden sm:inline">Market</span>
               </button>
-              <button onClick={() => onSetView('prices')} className="bg-accent-green/20 text-accent-green px-2 py-1 sm:px-3 sm:py-2 text-sm rounded-md hover:bg-accent-green/40 transition-colors flex items-center gap-1 sm:gap-2">
+              <button 
+                onClick={() => onSetView('prices')} 
+                disabled={player.isTraveling}
+                className="bg-accent-green/20 text-accent-green px-2 py-1 sm:px-3 sm:py-2 text-sm rounded-md hover:bg-accent-green/40 transition-colors flex items-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                   <Icon name="chart" className="w-5 h-5" />
                   <span className="hidden sm:inline">Prices</span>
               </button>

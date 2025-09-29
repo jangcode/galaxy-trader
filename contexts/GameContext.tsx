@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { GameState, NotificationMessage, NotificationType, PlayerState } from '../types';
 import * as gameLogic from '../services/gameLogic';
-import { MARKET_UPDATE_INTERVAL, SAVE_GAME_KEY } from '../constants';
+import { MARKET_UPDATE_INTERVAL, SAVE_GAME_KEY, AUTOSAVE_INTERVAL } from '../constants';
 
 interface GameContextType {
   gameState: GameState | null;
@@ -55,6 +55,15 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [gameState]);
 
   useEffect(() => {
+    const autoSaveNotifyInterval = setInterval(() => {
+      // The game is saved on every state change; this is a periodic notification for user feedback.
+      addNotification('Game auto-saved!', 'info');
+    }, AUTOSAVE_INTERVAL);
+
+    return () => clearInterval(autoSaveNotifyInterval);
+  }, [addNotification]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       setGameState(prevState => {
         if (!prevState) return null;
@@ -65,6 +74,22 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => clearInterval(interval);
   }, []);
   
+  useEffect(() => {
+    // This effect handles travel completion
+    const travelInterval = setInterval(() => {
+      if (gameState?.player.isTraveling) {
+        const newState = gameLogic.completeTravel(gameState);
+        if (newState) {
+          const destinationPlanet = newState.galaxy.planets.find(p => p.id === newState.player.currentPlanetId);
+          addNotification(`Arrived at ${destinationPlanet?.name || 'destination'}.`, 'success');
+          setGameState(newState);
+        }
+      }
+    }, 250);
+
+    return () => clearInterval(travelInterval);
+  }, [gameState, addNotification]);
+
   const handleAction = useCallback(<T,>(
     actionFn: (state: GameState, ...args: T[]) => { newState?: GameState; message: string; success: boolean },
     ...args: T[]

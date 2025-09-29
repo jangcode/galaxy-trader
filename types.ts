@@ -6,10 +6,19 @@ export interface GameState {
   checksum: string;
 }
 
+export interface TravelInfo {
+  originPlanetId: string;
+  destinationPlanetId: string;
+  startTime: string; // ISO string
+  endTime: string; // ISO string
+}
+
 export interface PlayerState {
   credits: number;
-  currentPlanetId: string;
+  currentPlanetId: string | null;
   ship: Ship;
+  isTraveling: boolean;
+  travelInfo: TravelInfo | null;
 }
 
 export interface Ship {

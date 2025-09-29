@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame } from './contexts/GameContext';
 import { Header } from './components/Header';
 import { CurrentPlanetView } from './components/CurrentPlanetView';
@@ -12,6 +12,12 @@ type View = 'map' | 'planet' | 'prices';
 const App: React.FC = () => {
   const { gameState, isLoading, notifications } = useGame();
   const [activeView, setActiveView] = useState<View>('map');
+
+  useEffect(() => {
+    if (gameState?.player.isTraveling) {
+      setActiveView('map');
+    }
+  }, [gameState?.player.isTraveling]);
 
   if (isLoading) {
     return (
