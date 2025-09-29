@@ -129,7 +129,7 @@ export const startNewGame = (): GameState => {
 };
 
 export const updateMarketPrices = (currentState: GameState): GameState => {
-  const newState = { ...currentState };
+  const newState = JSON.parse(JSON.stringify(currentState));
   newState.galaxy.planets.forEach(planet => {
     planet.market.forEach(marketGood => {
       const good = newState.galaxy.goods.find(g => g.id === marketGood.goodId);
@@ -352,4 +352,122 @@ export const upgradeShip = (currentState: GameState, upgradeType: 'cargo' | 'dur
     }
 
     return { success: false, message: 'Invalid upgrade type.' };
+};
+
+export const addPlanet = async (
+    currentState: GameState,
+    planetData: Omit<Planet, 'id' | 'position' | 'market'>
+): Promise<{ newState?: GameState; message: string; success: boolean }> => {
+    try {
+        const { generateMarketForPlanet } = await import('./geminiService');
+        const marketData = await generateMarketForPlanet(planetData, currentState.galaxy.goods);
+
+        const newState = JSON.parse(JSON.stringify(currentState));
+
+        const newPlanet: Planet = {
+            ...planetData,
+            id: planetData.name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+            position: { x: 0, y: 0, z: 0 }, // Will be randomized next
+            market: marketData.market
+        };
+
+        // Find a non-overlapping position
+        const MAP_WIDTH = 800;
+        const MAP_HEIGHT = 600;
+        const PADDING = 50;
+        const MIN_DISTANCE = 150;
+
+        const placedPositions = newState.galaxy.planets.map((p: Planet) => p.position);
+        let newPosition;
+        let positionOk = false;
+        let attempts = 0;
+
+        while (!positionOk && attempts < 100) {
+            newPosition = {
+                x: Math.floor(Math.random() * (MAP_WIDTH - PADDING * 2)) + PADDING,
+                y: Math.floor(Math.random() * (MAP_HEIGHT - PADDING * 2)) + PADDING,
+                z: Math.floor(Math.random() * 101) - 50,
+            };
+
+            positionOk = true;
+            for (const pos of placedPositions) {
+                const distance = Math.sqrt(
+                    Math.pow(newPosition.x - pos.x, 2) +
+                    Math.pow(newPosition.y - pos.y, 2)
+                );
+                if (distance < MIN_DISTANCE) {
+                    positionOk = false;
+                    break;
+                }
+            }
+            attempts++;
+        }
+        
+        if (!newPosition) {
+             newPosition = {
+                x: Math.floor(Math.random() * (MAP_WIDTH - PADDING * 2)) + PADDING,
+                y: Math.floor(Math.random() * (MAP_HEIGHT - PADDING * 2)) + PADDING,
+                z: Math.floor(Math.random() * 101) - 50,
+            };
+        }
+
+        newPlanet.position = newPosition;
+        
+        newState.galaxy.planets.push(newPlanet);
+
+        return { newState, success: true, message: `Planet ${newPlanet.name} created successfully.` };
+
+    } catch (error: any) {
+        return { success: false, message: error.message || "Failed to create planet." };
+    }
+};
+
+export const updatePlanet = async (
+    currentState: GameState,
+    planetData: Omit<Planet, 'position' | 'market'>
+): Promise<{ newState?: GameState; message: string; success: boolean }> => {
+    try {
+        const { generateMarketForPlanet } = await import('./geminiService');
+        const planetIndex = currentState.galaxy.planets.findIndex(p => p.id === planetData.id);
+        if (planetIndex === -1) {
+            return { success: false, message: "Planet not found." };
+        }
+
+        const marketData = await generateMarketForPlanet(planetData, currentState.galaxy.goods);
+
+        const newState = JSON.parse(JSON.stringify(currentState));
+
+        newState.galaxy.planets[planetIndex] = {
+            ...newState.galaxy.planets[planetIndex],
+            ...planetData,
+            market: marketData.market,
+        };
+
+        return { newState, success: true, message: `Planet ${planetData.name} updated successfully.` };
+
+    } catch (error: any) {
+        return { success: false, message: error.message || "Failed to update planet." };
+    }
+};
+
+export const deletePlanet = (
+    currentState: GameState,
+    planetId: string
+): { newState?: GameState; message: string; success: boolean } => {
+    
+    if (currentState.galaxy.planets.length <= 1) {
+        return { success: false, message: "Cannot delete the last planet in the galaxy." };
+    }
+    if (currentState.player.currentPlanetId === planetId) {
+        return { success: false, message: "Cannot delete the planet you are currently on." };
+    }
+    if (currentState.autoBotState?.isActive && (currentState.autoBotState.originPlanetId === planetId || currentState.autoBotState.destinationPlanetId === planetId)) {
+        return { success: false, message: "Cannot delete a planet involved in an active AutoBot mission." };
+    }
+
+    const newState = JSON.parse(JSON.stringify(currentState));
+    const planetName = newState.galaxy.planets.find((p: Planet) => p.id === planetId)?.name || 'Unknown';
+    newState.galaxy.planets = newState.galaxy.planets.filter((p: Planet) => p.id !== planetId);
+
+    return { newState, success: true, message: `Planet ${planetName} has been deleted.` };
 };

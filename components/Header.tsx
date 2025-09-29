@@ -7,7 +7,7 @@ import { useGame } from '../contexts/GameContext';
 interface HeaderProps {
   player: PlayerState;
   currentPlanetName: string;
-  onSetView: (view: 'map' | 'planet' | 'prices' | 'autobot') => void;
+  onSetView: (view: 'map' | 'planet' | 'prices' | 'autobot' | 'admin') => void;
 }
 
 const StatDisplay: React.FC<{ icon: string; value: string | number; label: string; colorClass?: string }> = ({ icon, value, label, colorClass = 'text-accent-blue' }) => (
@@ -29,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({ player, currentPlanetName, onSet
 
   return (
     <header className="bg-space-panel border-b border-space-border p-2 sm:p-4">
-      <div className="max-w-7xl mx-auto flex flex-nowrap justify-between items-center gap-2 sm:gap-4">
+      <div className="flex flex-nowrap justify-between items-center gap-2 sm:gap-4">
         <h1 className="text-xl md:text-3xl font-orbitron text-white whitespace-nowrap">
           Galaxy Trader
         </h1>
@@ -68,6 +68,14 @@ export const Header: React.FC<HeaderProps> = ({ player, currentPlanetName, onSet
               >
                   <Icon name="autobot" className="w-5 h-5" />
                   <span className="hidden sm:inline">AutoBot</span>
+              </button>
+              <button 
+                onClick={() => onSetView('admin')} 
+                disabled={player.isTraveling || isBotActive}
+                className="bg-gray-500/20 text-gray-400 px-2 py-1 sm:px-3 sm:py-2 text-sm rounded-md hover:bg-gray-500/40 transition-colors flex items-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                  <Icon name="admin" className="w-5 h-5" />
+                  <span className="hidden sm:inline">Admin</span>
               </button>
             </div>
              <div className="flex items-center gap-1 sm:gap-2 border-l border-space-border pl-1 sm:pl-2 ml-1 sm:ml-2">

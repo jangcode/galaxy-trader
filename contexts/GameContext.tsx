@@ -1,11 +1,13 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import type { GameState, NotificationMessage, NotificationType, PlayerState, AutoBotState } from '../types';
+import type { GameState, NotificationMessage, NotificationType, PlayerState, AutoBotState, Planet } from '../types';
 import * as gameLogic from '../services/gameLogic';
 import { MARKET_UPDATE_INTERVAL, SAVE_GAME_KEY, AUTOSAVE_INTERVAL } from '../constants';
 
 interface GameContextType {
   gameState: GameState | null;
   isLoading: boolean;
+  isProcessing: boolean;
   notifications: NotificationMessage[];
   addNotification: (message: string, type?: NotificationType) => void;
   actions: {
@@ -17,9 +19,11 @@ interface GameContextType {
     saveGame: () => void;
     loadGame: () => void;
     newGame: () => void;
-    // FIX: Remove `originPlanetId` from config type as it's determined from game state.
     startAutoBot: (config: Omit<AutoBotState, 'isActive' | 'startTime' | 'endTime' | 'currentTask' | 'logs' | 'originPlanetId'> & {durationInMinutes: number}) => void;
     stopAutoBot: () => void;
+    addPlanet: (planetData: Omit<Planet, 'id' | 'position' | 'market'>) => Promise<void>;
+    updatePlanet: (planetData: Omit<Planet, 'position' | 'market'>) => Promise<void>;
+    deletePlanet: (planetId: string) => void;
   };
 }
 
@@ -28,6 +32,7 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [notifications, setNotifications] = useState<NotificationMessage[]>([]);
 
   const addNotification = useCallback((message: string, type: NotificationType = 'info') => {
@@ -289,6 +294,52 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { ...prevState, autoBotState: null };
     });
   }, [addNotification]);
+
+  const addPlanetAction = async (planetData: Omit<Planet, 'id' | 'position' | 'market'>) => {
+      if (!gameState) return;
+      setIsProcessing(true);
+      try {
+        const result = await gameLogic.addPlanet(gameState, planetData);
+        if (result.success && result.newState) {
+            setGameState(result.newState);
+            addNotification(result.message, 'success');
+        } else {
+            addNotification(result.message, 'error');
+        }
+      } finally {
+          setIsProcessing(false);
+      }
+  };
+
+  const updatePlanetAction = async (planetData: Omit<Planet, 'position' | 'market'>) => {
+      if (!gameState) return;
+      setIsProcessing(true);
+      try {
+        const result = await gameLogic.updatePlanet(gameState, planetData);
+        if (result.success && result.newState) {
+            setGameState(result.newState);
+            addNotification(result.message, 'success');
+        } else {
+            addNotification(result.message, 'error');
+        }
+      } finally {
+          setIsProcessing(false);
+      }
+  };
+
+  const deletePlanetAction = (planetId: string) => {
+      setGameState(prevState => {
+          if (!prevState) return null;
+          const result = gameLogic.deletePlanet(prevState, planetId);
+          if (result.success && result.newState) {
+              addNotification(result.message, 'success');
+              return result.newState;
+          } else {
+              addNotification(result.message, 'error');
+              return prevState;
+          }
+      });
+  };
   
   const actions = {
     travelTo: useCallback((planetId: string) => handleAction(gameLogic.travelTo, planetId), [handleAction]),
@@ -301,10 +352,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     newGame: newGameAction,
     startAutoBot: startAutoBotAction,
     stopAutoBot: stopAutoBotAction,
+    addPlanet: useCallback(addPlanetAction, [gameState, addNotification]),
+    updatePlanet: useCallback(updatePlanetAction, [gameState, addNotification]),
+    deletePlanet: useCallback(deletePlanetAction, [addNotification]),
   };
 
   return (
-    <GameContext.Provider value={{ gameState, isLoading, notifications, addNotification, actions }}>
+    <GameContext.Provider value={{ gameState, isLoading, isProcessing, notifications, addNotification, actions }}>
       {children}
     </GameContext.Provider>
   );

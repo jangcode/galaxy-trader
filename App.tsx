@@ -7,11 +7,12 @@ import { GalaxyMap } from './components/GalaxyMap';
 import { Notification } from './components/Notification';
 import { GalaxyPricesView } from './components/GalaxyPricesView';
 import { AutoBotView } from './components/AutoBotView';
+import { AdminPanel } from './components/AdminPanel';
 
-type View = 'map' | 'planet' | 'prices' | 'autobot';
+type View = 'map' | 'planet' | 'prices' | 'autobot' | 'admin';
 
 const App: React.FC = () => {
-  const { gameState, isLoading, notifications } = useGame();
+  const { gameState, isLoading, notifications, isProcessing } = useGame();
   const [activeView, setActiveView] = useState<View>('map');
 
   useEffect(() => {
@@ -46,6 +47,14 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen bg-space-dark text-space-text flex flex-col overflow-hidden">
+      {isProcessing && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100]">
+          <div className="text-center">
+            <h2 className="text-2xl font-orbitron text-accent-blue animate-pulse">Processing...</h2>
+            <p className="text-space-text-secondary mt-2">The galactic archives are being updated.</p>
+          </div>
+        </div>
+      )}
       <Header 
         player={gameState.player} 
         currentPlanetName={currentPlanet?.name || "In Transit"}
@@ -60,6 +69,7 @@ const App: React.FC = () => {
         )}
         {activeView === 'prices' && <GalaxyPricesView />}
         {activeView === 'autobot' && <AutoBotView />}
+        {activeView === 'admin' && <AdminPanel />}
       </main>
       <div className="fixed bottom-4 right-4 flex flex-col items-end space-y-2 z-50">
         {notifications.map((notif) => (
