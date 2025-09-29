@@ -1,9 +1,22 @@
 
+export interface AutoBotState {
+  isActive: boolean;
+  startTime: string; // ISO string
+  endTime: string; // ISO string
+  originPlanetId: string;
+  destinationPlanetId: string;
+  goodId: string;
+  tradeQuantity: number;
+  currentTask: 'IDLE' | 'BUYING' | 'TRAVELING_TO_SELL' | 'SELLING' | 'TRAVELING_TO_BUY';
+  logs: string[];
+}
+
 export interface GameState {
   player: PlayerState;
   galaxy: Galaxy;
   lastUpdated: string;
   checksum: string;
+  autoBotState: AutoBotState | null;
 }
 
 export interface TravelInfo {
@@ -41,7 +54,7 @@ export interface CargoItem {
 }
 
 export interface Galaxy {
-  name: string;
+  name:string;
   planets: Planet[];
   goods: Good[];
 }

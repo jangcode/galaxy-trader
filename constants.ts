@@ -285,6 +285,7 @@ export const INITIAL_GAME_STATE: GameState = {
   galaxy: GALAXY,
   lastUpdated: new Date().toISOString(),
   checksum: '',
+  autoBotState: null,
 };
 
 export const SHIP_SPEED = 100; // units per second

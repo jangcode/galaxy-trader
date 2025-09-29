@@ -1,6 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import type { GameState, NotificationMessage, NotificationType, PlayerState } from '../types';
+import type { GameState, NotificationMessage, NotificationType, PlayerState, AutoBotState } from '../types';
 import * as gameLogic from '../services/gameLogic';
 import { MARKET_UPDATE_INTERVAL, SAVE_GAME_KEY, AUTOSAVE_INTERVAL } from '../constants';
 
@@ -18,6 +17,9 @@ interface GameContextType {
     saveGame: () => void;
     loadGame: () => void;
     newGame: () => void;
+    // FIX: Remove `originPlanetId` from config type as it's determined from game state.
+    startAutoBot: (config: Omit<AutoBotState, 'isActive' | 'startTime' | 'endTime' | 'currentTask' | 'logs' | 'originPlanetId'> & {durationInMinutes: number}) => void;
+    stopAutoBot: () => void;
   };
 }
 
@@ -66,7 +68,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const interval = setInterval(() => {
       setGameState(prevState => {
-        if (!prevState) return null;
+        if (!prevState || prevState.autoBotState?.isActive) return prevState; // Pause market updates while bot is active
         return gameLogic.updateMarketPrices(prevState);
       });
     }, MARKET_UPDATE_INTERVAL);
@@ -89,6 +91,124 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     return () => clearInterval(travelInterval);
   }, [gameState, addNotification]);
+  
+  // AutoBot Logic
+  const runAutoBotLogic = useCallback(() => {
+    setGameState(prevState => {
+      if (!prevState?.autoBotState?.isActive || prevState.player.isTraveling) {
+        return prevState;
+      }
+
+      let newState: GameState = JSON.parse(JSON.stringify(prevState));
+      const { autoBotState } = newState;
+
+      // Check end time
+      if (new Date().getTime() > new Date(autoBotState.endTime).getTime()) {
+        addNotification('AutoBot finished its mission.', 'info');
+        newState.autoBotState = null;
+        return newState;
+      }
+
+      const log = (message: string) => {
+        const logMessage = `[${new Date().toLocaleTimeString()}] ${message}`;
+        if (newState.autoBotState) {
+          newState.autoBotState.logs.push(logMessage);
+          if (newState.autoBotState.logs.length > 50) {
+            newState.autoBotState.logs.shift();
+          }
+        }
+      };
+
+      // Task transition logic (on arrival)
+      if (autoBotState.currentTask === 'TRAVELING_TO_SELL' && newState.player.currentPlanetId === autoBotState.destinationPlanetId) {
+          log(`Arrived at ${autoBotState.destinationPlanetId} to sell.`);
+          autoBotState.currentTask = 'SELLING';
+          return newState; // Return early to process action on next tick
+      } else if (autoBotState.currentTask === 'TRAVELING_TO_BUY' && newState.player.currentPlanetId === autoBotState.originPlanetId) {
+          log(`Arrived at ${autoBotState.originPlanetId} to buy.`);
+          autoBotState.currentTask = 'BUYING';
+          return newState; // Return early to process action on next tick
+      }
+      
+      // Action logic
+      switch (autoBotState.currentTask) {
+          case 'BUYING': {
+              const goodToBuy = newState.galaxy.goods.find(g => g.id === autoBotState.goodId);
+              const marketGood = newState.galaxy.planets.find(p => p.id === newState.player.currentPlanetId)?.market.find(m => m.goodId === autoBotState.goodId);
+
+              if (!goodToBuy || !marketGood) {
+                  log(`Error: Cannot buy ${autoBotState.goodId}. Stopping.`);
+                  addNotification(`AutoBot stopped: good not available for purchase.`, 'error');
+                  newState.autoBotState = null;
+                  return newState;
+              }
+              
+              const currentCargoLoad = newState.player.ship.cargo.items.reduce((sum, item) => sum + item.quantity, 0);
+              const freeCargoSpace = newState.player.ship.cargo.capacity - currentCargoLoad;
+              const maxAffordable = Math.floor(newState.player.credits / marketGood.buyPrice);
+              const quantityToBuy = Math.min(autoBotState.tradeQuantity, freeCargoSpace, maxAffordable);
+              
+              if (quantityToBuy > 0) {
+                   const result = gameLogic.buyGood(newState, autoBotState.goodId, quantityToBuy);
+                   if (result.success && result.newState) {
+                       log(`Bought ${quantityToBuy} ${goodToBuy.name}.`);
+                       newState = result.newState;
+                   }
+              }
+
+              log(`Traveling to ${autoBotState.destinationPlanetId} to sell.`);
+              const travelResult = gameLogic.travelTo(newState, autoBotState.destinationPlanetId);
+              if(travelResult.success && travelResult.newState) {
+                  const finalState = travelResult.newState;
+                  if (finalState.autoBotState) finalState.autoBotState.currentTask = 'TRAVELING_TO_SELL';
+                  return finalState;
+              } else {
+                  log(`Failed to travel: ${travelResult.message}. Stopping Bot.`);
+                  addNotification(`AutoBot stopped: ${travelResult.message}`, 'error');
+                  newState.autoBotState = null;
+                  return newState;
+              }
+          }
+
+          case 'SELLING': {
+              const cargoItem = newState.player.ship.cargo.items.find(item => item.goodId === autoBotState.goodId);
+              if (cargoItem && cargoItem.quantity > 0) {
+                  const result = gameLogic.sellGood(newState, autoBotState.goodId, cargoItem.quantity);
+                  if (result.success && result.newState) {
+                      const goodSold = newState.galaxy.goods.find(g => g.id === autoBotState.goodId);
+                      log(`Sold ${cargoItem.quantity} ${goodSold?.name}.`);
+                      newState = result.newState;
+                  }
+              }
+              
+              log(`Traveling to ${autoBotState.originPlanetId} to buy.`);
+              const travelResult = gameLogic.travelTo(newState, autoBotState.originPlanetId);
+              if(travelResult.success && travelResult.newState) {
+                  const finalState = travelResult.newState;
+                  if(finalState.autoBotState) finalState.autoBotState.currentTask = 'TRAVELING_TO_BUY';
+                  return finalState;
+              } else {
+                  log(`Failed to travel: ${travelResult.message}. Stopping Bot.`);
+                  addNotification(`AutoBot stopped: ${travelResult.message}`, 'error');
+                  newState.autoBotState = null;
+                  return newState;
+              }
+          }
+      }
+
+      return prevState; // No change
+    });
+  }, [addNotification]);
+
+  useEffect(() => {
+    const botInterval = setInterval(() => {
+        if (gameState?.autoBotState?.isActive) {
+            runAutoBotLogic();
+        }
+    }, 2000); // Run every 2 seconds
+    return () => clearInterval(botInterval);
+  }, [gameState?.autoBotState?.isActive, runAutoBotLogic]);
+
 
   const handleAction = useCallback(<T,>(
     actionFn: (state: GameState, ...args: T[]) => { newState?: GameState; message: string; success: boolean },
@@ -96,6 +216,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   ) => {
     setGameState(prevState => {
       if (!prevState) return null;
+      if (prevState.autoBotState?.isActive) {
+        addNotification('Cannot perform manual actions while AutoBot is active.', 'error');
+        return prevState;
+      }
       const result = actionFn(prevState, ...args);
       if (result.success && result.newState) {
         addNotification(result.message, 'success');
@@ -133,6 +257,38 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           addNotification('A new journey begins!', 'info');
       }
   }, [addNotification]);
+
+  const startAutoBotAction = useCallback((config: Omit<AutoBotState, 'isActive' | 'startTime' | 'endTime' | 'currentTask' | 'logs' | 'originPlanetId'> & {durationInMinutes: number}) => {
+    setGameState(prevState => {
+        if (!prevState || !prevState.player.currentPlanetId) return prevState;
+
+        const startTime = new Date();
+        const endTime = new Date(startTime.getTime() + config.durationInMinutes * 60 * 1000);
+
+        const newAutoBotState: AutoBotState = {
+            isActive: true,
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
+            originPlanetId: prevState.player.currentPlanetId,
+            destinationPlanetId: config.destinationPlanetId,
+            goodId: config.goodId,
+            tradeQuantity: config.tradeQuantity,
+            currentTask: 'BUYING',
+            logs: [`[${startTime.toLocaleTimeString()}] AutoBot initialized. Mission: Trade ${config.goodId} between ${prevState.player.currentPlanetId} and ${config.destinationPlanetId}.`],
+        };
+
+        addNotification(`AutoBot started for ${config.durationInMinutes} minutes!`, 'success');
+        return { ...prevState, autoBotState: newAutoBotState };
+    });
+  }, [addNotification]);
+
+  const stopAutoBotAction = useCallback(() => {
+    setGameState(prevState => {
+        if (!prevState || !prevState.autoBotState?.isActive) return prevState;
+        addNotification('AutoBot manually stopped.', 'info');
+        return { ...prevState, autoBotState: null };
+    });
+  }, [addNotification]);
   
   const actions = {
     travelTo: useCallback((planetId: string) => handleAction(gameLogic.travelTo, planetId), [handleAction]),
@@ -143,6 +299,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     saveGame: saveGameAction,
     loadGame: loadGameAction,
     newGame: newGameAction,
+    startAutoBot: startAutoBotAction,
+    stopAutoBot: stopAutoBotAction,
   };
 
   return (

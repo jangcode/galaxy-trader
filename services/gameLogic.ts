@@ -94,6 +94,7 @@ export const loadGame = (): { state: GameState; isNewGame: boolean } => {
       savedState.player.currentPlanetId = 'terra';
     }
 
+    savedState.autoBotState = null; // Ensure autobot is not running on load
 
     if (createChecksum(savedState) !== savedState.checksum) {
       console.warn('Game data checksum mismatch! Data may be corrupted. Starting a new game.');
@@ -114,7 +115,7 @@ export const loadGame = (): { state: GameState; isNewGame: boolean } => {
 
 export const saveGame = (state: GameState): void => {
   try {
-    const stateToSave = { ...state, checksum: createChecksum(state) };
+    const stateToSave = { ...state, checksum: createChecksum(state), autoBotState: null };
     localStorage.setItem(SAVE_GAME_KEY, JSON.stringify(stateToSave));
   } catch (error) {
     console.error('Failed to save game state to localStorage:', error);

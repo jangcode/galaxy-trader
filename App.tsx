@@ -6,18 +6,19 @@ import { CurrentPlanetView } from './components/CurrentPlanetView';
 import { GalaxyMap } from './components/GalaxyMap';
 import { Notification } from './components/Notification';
 import { GalaxyPricesView } from './components/GalaxyPricesView';
+import { AutoBotView } from './components/AutoBotView';
 
-type View = 'map' | 'planet' | 'prices';
+type View = 'map' | 'planet' | 'prices' | 'autobot';
 
 const App: React.FC = () => {
   const { gameState, isLoading, notifications } = useGame();
   const [activeView, setActiveView] = useState<View>('map');
 
   useEffect(() => {
-    if (gameState?.player.isTraveling) {
+    if (gameState?.player.isTraveling && !gameState?.autoBotState?.isActive) {
       setActiveView('map');
     }
-  }, [gameState?.player.isTraveling]);
+  }, [gameState?.player.isTraveling, gameState?.autoBotState?.isActive]);
 
   if (isLoading) {
     return (
@@ -58,6 +59,7 @@ const App: React.FC = () => {
           <CurrentPlanetView planet={currentPlanet} />
         )}
         {activeView === 'prices' && <GalaxyPricesView />}
+        {activeView === 'autobot' && <AutoBotView />}
       </main>
       <div className="fixed bottom-4 right-4 flex flex-col items-end space-y-2 z-50">
         {notifications.map((notif) => (
